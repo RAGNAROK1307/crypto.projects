@@ -33,8 +33,9 @@ namespace crypto.projects
             {
                 Console.WriteLine("\nMenú de Gestión de Claves:");
                 Console.WriteLine("1. Generar par de claves RSA");
-                Console.WriteLine("2. Generar Firma (comprime la firma, la llave publica y el mensaje");
-                Console.WriteLine("3. Salir");
+                Console.WriteLine("2. Generar Firma (comprime la firma, la llave pública y el mensaje)");
+                Console.WriteLine("3. Descomprimir y verificar firma");
+                Console.WriteLine("4. Salir");
 
                 Console.Write("Seleccione una opción: ");
                 string opcion = Console.ReadLine();
@@ -48,6 +49,9 @@ namespace crypto.projects
                         DisplayKeyPairs();
                         break;
                     case "3":
+                        DecompressAndVerify();
+                        break;
+                    case "4":
                         SaveToJson();
                         return;
                     default:
@@ -217,6 +221,57 @@ namespace crypto.projects
             catch (Exception ex)
             {
                 Console.WriteLine($"Error inesperado: {ex.Message}");
+            }
+        }
+
+        private void DecompressAndVerify()
+        {
+            try
+            {
+                Console.Write("Ingrese la ruta del archivo comprimido (.zip): ");
+                string rutaArchivoZip = Console.ReadLine();
+
+                if (!File.Exists(rutaArchivoZip))
+                {
+                    Console.WriteLine("El archivo especificado no existe.");
+                    return;
+                }
+
+                // Descomprimir el archivo ZIP
+                string extractPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtractedFiles");
+                ZipFile.ExtractToDirectory(rutaArchivoZip, extractPath);
+
+                // Leer el mensaje, clave pública y firma del archivo descomprimido
+                string mensaje = File.ReadAllText(Path.Combine(extractPath, "Mensaje.txt"));
+                string publicKeyXml = File.ReadAllText(Path.Combine(extractPath, "PublicKey.txt"));
+                byte[] firma = File.ReadAllBytes(Path.Combine(extractPath, "Firma.txt"));
+
+                // Crear una instancia de la clase RSACryptoServiceProvider y cargar la clave pública
+                using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
+                {
+                    rsa.FromXmlString(publicKeyXml);
+
+                    // Convertir el mensaje a bytes
+                    byte[] mensajeBytes = Encoding.UTF8.GetBytes(mensaje);
+
+                    // Verificar la firma
+                    bool verificado = rsa.VerifyData(mensajeBytes, firma, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                    if (verificado)
+                    {
+                        Console.WriteLine("La firma es válida.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("La firma es inválida.");
+                    }
+                }
+
+                // Eliminar los archivos descomprimidos
+                Directory.Delete(extractPath, true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
             }
         }
 
